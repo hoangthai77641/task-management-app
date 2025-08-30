@@ -6,13 +6,17 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
 
-# Generate Prisma client
-RUN npx prisma generate
+# Copy source code
+COPY src ./src
+
+# Generate Prisma client and build TypeScript
+RUN npm run build
 
 # Production stage
 FROM node:18-alpine AS production
@@ -28,7 +32,8 @@ RUN adduser -S nodeuser -u 1001
 # Copy built application
 COPY --from=builder --chown=nodeuser:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodeuser:nodejs /app/prisma ./prisma
-COPY --chown=nodeuser:nodejs . .
+COPY --from=builder --chown=nodeuser:nodejs /app/dist ./dist
+COPY --chown=nodeuser:nodejs package*.json ./
 
 # Create uploads directory
 RUN mkdir -p uploads && chown nodeuser:nodejs uploads
